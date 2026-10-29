@@ -29,7 +29,7 @@ TEST_DATABASE_URL=postgresql+psycopg2://recon:recon@localhost:5432/recon python 
 MISSING_VENDOR, DUPLICATE_INVOICE, NON_POSITIVE_AMOUNT, TAX_MISMATCH, TOTAL_MISMATCH, FUTURE_DATED,
 DUE_BEFORE_ISSUE, INVALID_CURRENCY, UNPAID_OVERDUE, OVERPAID, PARTIALLY_PAID_OVERDUE, ORPHAN_PAYMENT.
 
-## Known limits (say these in interviews before they ask)
+## Known limits
 - Data is synthetic; anomalies are injected, so "100% detection" means the rules match the injected definitions, not real-world recall.
 - Money is stored as NUMERIC(14,2) and compared with a 0.02 tolerance; no currency conversion.
 - No authentication; CORS allows only http://localhost:4200.
