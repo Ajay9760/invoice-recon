@@ -1,0 +1,11 @@
+@if (data(); as s) {
+  <h2>{{ s.invoices }} invoices · {{ s.exceptions }} exceptions</h2>
+  <table>
+    <tr><th>Rule</th><th>Severity</th><th>Count</th></tr>
+    @for (r of s.by_rule; track r.rule_code) {
+      <tr><td>{{ r.rule_code }}</td><td>{{ r.severity }}</td><td>{{ r.count }}</td></tr>
+    }
+  </table>
+} @else {
+  <p>Loading…</p>
+}

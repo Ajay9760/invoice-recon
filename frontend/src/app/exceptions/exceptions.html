@@ -1,0 +1,26 @@
+<h2>Exceptions</h2>
+<select #sel (change)="setRule(sel.value)">
+  <option value="">All rules</option>
+  @for (r of rules; track r) {
+    <option [value]="r">{{ r }}</option>
+  }
+</select>
+
+@if (result(); as r) {
+  <p>{{ r.total }} results · page {{ page() + 1 }}</p>
+  <table>
+    <tr><th>Rule</th><th>Severity</th><th>Record</th><th>Detail</th></tr>
+    @for (e of r.items; track e.id) {
+      <tr>
+        <td>{{ e.rule_code }}</td>
+        <td>{{ e.severity }}</td>
+        <td>{{ e.invoice_id ? 'Invoice ' + e.invoice_id : 'Payment ' + e.payment_id }}</td>
+        <td>{{ e.detail }}</td>
+      </tr>
+    }
+  </table>
+  <button (click)="prev()" [disabled]="page() === 0">Prev</button>
+  <button (click)="next()" [disabled]="isLast(r)">Next</button>
+} @else {
+  <p>Loading…</p>
+}

@@ -1,0 +1,14 @@
+<h2>Upload</h2>
+<p>Invoices CSV: <input #inv type="file" accept=".csv" (change)="pick('invoices', inv)" /></p>
+<p>Payments CSV: <input #pay type="file" accept=".csv" (change)="pick('payments', pay)" /></p>
+<button (click)="submit()" [disabled]="busy() || !invoices() || !payments()">Upload &amp; reconcile</button>
+
+@if (busy()) { <p>Working…</p> }
+@if (error()) { <p style="color: red">{{ error() }}</p> }
+@if (uploaded(); as u) {
+  <p>Loaded {{ u.invoices_loaded }} invoices and {{ u.payments_loaded }} payments
+    ({{ u.invoices_rejected }} invoices and {{ u.payments_rejected }} payments rejected).</p>
+}
+@if (reconciled(); as r) {
+  <p>{{ r.exceptions }} exceptions found. <a routerLink="/summary">View summary</a></p>
+}

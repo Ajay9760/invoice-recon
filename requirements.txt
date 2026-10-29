@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pandas
+numpy
+python-multipart
+psycopg2-binary
+pytest
+pytest-cov
+httpx

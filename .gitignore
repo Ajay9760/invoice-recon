@@ -1,0 +1,9 @@
+__pycache__/
+*.db
+.coverage
+.pytest_cache/
+node_modules/
+dist/
+.angular/
+sample/
+sample/
