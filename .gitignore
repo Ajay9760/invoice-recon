@@ -1,9 +1,19 @@
+Set-Content .gitignore @"
 __pycache__/
+*.pyc
 *.db
 .coverage
+htmlcov/
 .pytest_cache/
+.env
+*.env
+sample/
 node_modules/
 dist/
 .angular/
-sample/
-sample/
+frontend/.claude/
+frontend/.vscode/
+e2e/fixtures/
+e2e/test-results/
+e2e/playwright-report/
+"@

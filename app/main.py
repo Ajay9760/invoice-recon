@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.responses import RedirectResponse
 from app import db, generator, pipeline, queries
 
 
@@ -16,9 +16,15 @@ def create_app(engine=None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4200"],
                        allow_methods=["*"], allow_headers=["*"])
 
+    @app.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse(url="/docs")
+    
+    
     @app.get("/health")                                                    # 1
     def health():
         return {"status": "ok"}
+
 
     @app.post("/data/generate")                                            # 2
     def generate_data(n: int = Query(10_000, ge=500, le=200_000), seed: int = 42):

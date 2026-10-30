@@ -1,0 +1,7 @@
+frontend
+e2e
+sample
+tests
+__pycache__
+*.db
+.git
