@@ -119,3 +119,10 @@ def test_forced_provider_without_key_fails_loudly(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
     with pytest.raises(ValueError):
         llm.get_suggester()
+
+
+def test_gemini_error_includes_status_and_google_message_but_not_key():
+    body = {"error": {"status": "INVALID_ARGUMENT", "message": "API key not valid."}}
+    with pytest.raises(llm.SuggestionError) as err:
+        gemini_with(lambda r: httpx.Response(400, json=body)).suggest("OVERPAID", "MEDIUM", "d")
+    assert "HTTP 400 INVALID_ARGUMENT" in str(err.value) and "API key not valid" in str(err.value)

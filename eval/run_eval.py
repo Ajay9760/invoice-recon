@@ -19,17 +19,20 @@ from app import llm  # noqa: E402
 
 def run(suggester, cases):
     right, invalid, per_rule, misses = 0, 0, defaultdict(lambda: [0, 0]), []
+    errors = defaultdict(int)
     for c in cases:
         try:
             got = suggester.suggest(c["rule_code"], c["severity"], c["detail"]).action
-        except llm.SuggestionError:
+        except llm.SuggestionError as exc:
             got, invalid = None, invalid + 1
+            errors[str(exc)] += 1
         ok = got == c["expected"]
         right += ok
         per_rule[c["rule_code"]][0] += ok
         per_rule[c["rule_code"]][1] += 1
         if not ok:
             misses.append((c, got))
+    run.errors = dict(errors)
     return right, invalid, per_rule, misses
 
 
@@ -42,6 +45,8 @@ def main():
     suggester = llm.get_suggester() if args.llm else llm.RuleBasedSuggester()
     right, invalid, per_rule, misses = run(suggester, cases)
     print(f"{type(suggester).__name__}: {right}/{len(cases)} correct ({right / len(cases):.0%}), {invalid} invalid replies")
+    for reason, n in sorted(run.errors.items(), key=lambda kv: -kv[1]):
+        print(f"  INVALID x{n}: {reason}")
     for rule, (r, n) in sorted(per_rule.items()):
         print(f"  {rule:<24}{r}/{n}")
     for c, got in misses:

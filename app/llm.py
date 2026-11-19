@@ -147,8 +147,20 @@ class GeminiSuggester:
             parts = resp.json()["candidates"][0]["content"]["parts"]
             raw = "".join(p.get("text", "") for p in parts)
         except Exception as exc:  # network, HTTP error, blocked/empty candidate, bad shape
-            raise SuggestionError(f"Gemini call failed: {type(exc).__name__}") from exc
+            raise SuggestionError(f"Gemini call failed: {self._describe(exc)}") from exc
         return parse_suggestion(raw, self.model)
+
+    @staticmethod
+    def _describe(exc: Exception) -> str:
+        """Short, key-free reason: HTTP status plus Google's own error text when present."""
+        resp = getattr(exc, "response", None)
+        if resp is None:
+            return type(exc).__name__
+        try:
+            err = resp.json().get("error", {})
+            return f"HTTP {resp.status_code} {err.get('status', '')}: {str(err.get('message', ''))[:160]}".strip()
+        except Exception:
+            return f"HTTP {resp.status_code}"
 
 
 def get_suggester() -> Suggester:
