@@ -257,6 +257,34 @@ GET  /trends
 
 The generator creates the synthetic invoice/payment data and injects anomalies into defined blocks. This provides a known generated dataset against which the rule results can be inspected.
 
+## AI-assisted triage (human in the loop)
+
+Each exception can get a suggested remediation (e.g. `REQUEST_CREDIT_NOTE`, `CHASE_PAYMENT`). The
+suggestion is **only a proposal**: it is stored as `PENDING` and nothing in the reconciliation data
+changes until a reviewer approves or rejects it.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /exceptions/{id}/suggestion` | Ask the suggester for a remediation |
+| `GET /suggestions?status=PENDING` | Review queue |
+| `POST /suggestions/{id}/decision` | Approve or reject (needs `X-API-Key`) |
+| `GET /metrics` | Prometheus metrics (requests, latency, suggestions, decisions) |
+
+Guardrails:
+- **Closed action set.** The model must answer with one of 7 actions; anything else is rejected.
+- **Untrusted input.** Exception text can come from uploaded CSVs, so it is sanitised, sent as quoted data, and the system prompt tells the model not to follow instructions inside it.
+- **Graceful failure.** No key, timeout or invalid reply falls back to the deterministic rule-based suggester (`source = fallback`); the request still succeeds.
+- **Reviewer auth, fail closed.** Decisions need `X-API-Key` matching `REVIEWER_API_KEY`; if it is unset the endpoint returns 503.
+- **One decision per suggestion.** A conditional update means two reviewers cannot both decide (second gets 409).
+- **Stale on re-run.** `POST /reconcile` replaces all exceptions, so it also clears their suggestions.
+
+Configuration: `ANTHROPIC_API_KEY` (optional; without it the rule-based suggester is used),
+`LLM_MODEL` (default `claude-haiku-5-5`), `REVIEWER_API_KEY`.
+
+Evaluation: `python eval/run_eval.py` scores the rule-based baseline on 20 hand-labelled cases;
+`python eval/run_eval.py --llm` scores the LLM. The labels are judgement calls and the set is small,
+so treat the score as a smoke test, not a benchmark.
+
 ## Testing
 
 Run the full test suite:

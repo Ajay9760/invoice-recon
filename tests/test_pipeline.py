@@ -13,8 +13,10 @@ def count(engine, table):
         return c.execute(select(func.count()).select_from(table)).scalar_one()
 
 
-def test_schema_has_six_tables(engine):
-    assert len(db.metadata.tables) == 6
+def test_schema_has_six_core_tables_plus_suggestions(engine):
+    core = set(db.metadata.tables) - {"suggestions"}
+    assert core == {"vendors", "customers", "tax_rates", "invoices", "payments", "exceptions"}
+    assert "suggestions" in db.metadata.tables
 
 
 def test_load_reference_inserts_rows(engine):

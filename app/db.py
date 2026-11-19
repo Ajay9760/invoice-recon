@@ -74,8 +74,24 @@ exceptions = Table(
     Column("run_at", DateTime, nullable=False),
 )
 
+# AI-suggested remediation for an exception. Nothing here is ever applied automatically:
+# a suggestion stays PENDING until a human approves or rejects it.
+suggestions = Table(
+    "suggestions", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("exception_id", Integer, ForeignKey("exceptions.id"), nullable=False, index=True),
+    Column("action", String(32), nullable=False),
+    Column("rationale", String(500), nullable=False),
+    Column("source", String(16), nullable=False),   # llm | rule_based | fallback
+    Column("model", String(64), nullable=True),
+    Column("status", String(12), nullable=False, default="PENDING"),  # PENDING | APPROVED | REJECTED
+    Column("reviewer_note", String(255), nullable=True),
+    Column("created_at", DateTime, nullable=False),
+    Column("decided_at", DateTime, nullable=True),
+)
+
 # order matters for deletes (children first)
-DELETE_ORDER = [exceptions, payments, invoices]
+DELETE_ORDER = [suggestions, exceptions, payments, invoices]
 
 
 def get_engine(url: str | None = None):

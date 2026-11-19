@@ -8,3 +8,5 @@ psycopg2-binary
 pytest
 pytest-cov
 httpx
+prometheus-client
+anthropic

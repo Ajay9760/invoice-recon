@@ -56,6 +56,8 @@ def reconcile(engine, as_of: date | None = None) -> dict:
         ven = pd.read_sql(select(db.vendors), conn)
         tax = pd.read_sql(select(db.tax_rates), conn)
         exc = run_all(inv, pay, ven, tax, as_of)
+        # A new run replaces every exception, so suggestions about the old ones are stale.
+        conn.execute(delete(db.suggestions))
         conn.execute(delete(db.exceptions))
         if len(exc):
             exc = exc.assign(run_at=datetime.now())
