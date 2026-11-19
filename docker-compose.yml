@@ -16,7 +16,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://recon:recon@db:5432/recon
       REVIEWER_API_KEY: ${REVIEWER_API_KEY:-dev-reviewer-key}   # dev default only; set your own
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}                 # empty = rule-based suggestions
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}                 # leave both keys empty = rule-based suggestions
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}                           # optional: anthropic | gemini | rule_based
     depends_on:
       db:
         condition: service_healthy

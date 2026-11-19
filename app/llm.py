@@ -122,7 +122,50 @@ class AnthropicSuggester:
         return parse_suggestion(raw, self.model)
 
 
+class GeminiSuggester:
+    """Google Gemini via its REST API (free tier available in Google AI Studio)."""
+    URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+    def __init__(self, api_key: str, model: str | None = None, timeout: float = 15.0, client=None):
+        import httpx
+        self.model = model or os.getenv("LLM_MODEL", "gemini-2.5-flash")
+        self._api_key = api_key
+        self._client = client or httpx.Client(timeout=timeout)
+
+    def suggest(self, rule_code: str, severity: str, detail: str) -> Suggestion:
+        body = {
+            "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": build_user_message(rule_code, severity, detail)}]}],
+            "generationConfig": {"temperature": 0, "maxOutputTokens": 300,
+                                 "responseMimeType": "application/json"},
+        }
+        try:
+            # key goes in a header, not the URL, so it never lands in access logs
+            resp = self._client.post(self.URL.format(model=self.model), json=body,
+                                     headers={"x-goog-api-key": self._api_key})
+            resp.raise_for_status()
+            parts = resp.json()["candidates"][0]["content"]["parts"]
+            raw = "".join(p.get("text", "") for p in parts)
+        except Exception as exc:  # network, HTTP error, blocked/empty candidate, bad shape
+            raise SuggestionError(f"Gemini call failed: {type(exc).__name__}") from exc
+        return parse_suggestion(raw, self.model)
+
+
 def get_suggester() -> Suggester:
-    """LLM suggester when ANTHROPIC_API_KEY is set, otherwise the rule-based one."""
-    key = os.getenv("ANTHROPIC_API_KEY")
-    return AnthropicSuggester(api_key=key) if key else RuleBasedSuggester()
+    """Pick a suggester from the environment.
+
+    LLM_PROVIDER=anthropic|gemini|rule_based forces a choice. Otherwise: Anthropic if
+    ANTHROPIC_API_KEY is set, else Gemini if GEMINI_API_KEY is set, else rule-based.
+    A forced provider with no key fails loudly at startup rather than silently downgrading.
+    """
+    provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+    anthropic_key, gemini_key = os.getenv("ANTHROPIC_API_KEY"), os.getenv("GEMINI_API_KEY")
+    if not provider:
+        provider = "anthropic" if anthropic_key else "gemini" if gemini_key else "rule_based"
+    if provider == "rule_based":
+        return RuleBasedSuggester()
+    if provider == "anthropic" and anthropic_key:
+        return AnthropicSuggester(api_key=anthropic_key)
+    if provider == "gemini" and gemini_key:
+        return GeminiSuggester(api_key=gemini_key)
+    raise ValueError(f"LLM_PROVIDER={provider!r} needs its API key (or use rule_based)")

@@ -1,7 +1,8 @@
 """Score a suggester against hand-labelled cases.
 
     python eval/run_eval.py                 # rule-based baseline (no API key needed)
-    ANTHROPIC_API_KEY=... python eval/run_eval.py --llm
+    GEMINI_API_KEY=... python eval/run_eval.py --llm       # or ANTHROPIC_API_KEY=...
+    LLM_PROVIDER=gemini python eval/run_eval.py --llm      # force a provider
 
 The labels in cases.jsonl are judgement calls: review and relabel them before trusting a score.
 Prints overall and per-rule accuracy plus how many replies were invalid (those fall back in the app).
@@ -34,11 +35,11 @@ def run(suggester, cases):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--llm", action="store_true", help="use the Anthropic suggester (needs ANTHROPIC_API_KEY)")
+    ap.add_argument("--llm", action="store_true", help="use the LLM chosen by env (see llm.get_suggester)")
     ap.add_argument("--cases", default=str(Path(__file__).with_name("cases.jsonl")))
     args = ap.parse_args()
     cases = [json.loads(line) for line in Path(args.cases).read_text().splitlines() if line.strip()]
-    suggester = llm.AnthropicSuggester() if args.llm else llm.RuleBasedSuggester()
+    suggester = llm.get_suggester() if args.llm else llm.RuleBasedSuggester()
     right, invalid, per_rule, misses = run(suggester, cases)
     print(f"{type(suggester).__name__}: {right}/{len(cases)} correct ({right / len(cases):.0%}), {invalid} invalid replies")
     for rule, (r, n) in sorted(per_rule.items()):

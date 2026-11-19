@@ -278,11 +278,14 @@ Guardrails:
 - **One decision per suggestion.** A conditional update means two reviewers cannot both decide (second gets 409).
 - **Stale on re-run.** `POST /reconcile` replaces all exceptions, so it also clears their suggestions.
 
-Configuration: `ANTHROPIC_API_KEY` (optional; without it the rule-based suggester is used),
-`LLM_MODEL` (default `claude-haiku-5-5`), `REVIEWER_API_KEY`.
+Configuration: `REVIEWER_API_KEY` (required to approve/reject) and an optional LLM provider.
+`LLM_PROVIDER` = `anthropic` | `gemini` | `rule_based`; if unset it uses Anthropic when `ANTHROPIC_API_KEY`
+is set, else Gemini when `GEMINI_API_KEY` is set (free tier at aistudio.google.com), else rule-based.
+`LLM_MODEL` overrides the default model (`claude-haiku-5-5` / `gemini-2.5-flash`). Forcing a provider
+without its key fails at startup instead of silently downgrading.
 
 Evaluation: `python eval/run_eval.py` scores the rule-based baseline on 20 hand-labelled cases;
-`python eval/run_eval.py --llm` scores the LLM. The labels are judgement calls and the set is small,
+`python eval/run_eval.py --llm` scores whichever LLM the environment selects. The labels are judgement calls and the set is small,
 so treat the score as a smoke test, not a benchmark.
 
 ## Testing
