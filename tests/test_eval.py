@@ -1,4 +1,6 @@
 import json
+
+import pytest
 import sys
 from pathlib import Path
 
@@ -17,3 +19,12 @@ def test_cases_use_only_allowed_actions():
 def test_baseline_scores_and_has_known_misses():
     right, invalid, _, misses = run_eval.run(llm.RuleBasedSuggester(), CASES)
     assert invalid == 0 and 0 < right < len(CASES) and misses   # baseline is imperfect by design
+
+
+def test_llm_flag_without_a_key_fails_instead_of_scoring_the_baseline(monkeypatch):
+    for v in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "LLM_PROVIDER"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setattr(sys, "argv", ["run_eval.py", "--llm"])
+    with pytest.raises(SystemExit) as exc:
+        run_eval.main()
+    assert "THIS terminal" in str(exc.value)

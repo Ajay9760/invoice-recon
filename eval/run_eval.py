@@ -43,6 +43,9 @@ def main():
     args = ap.parse_args()
     cases = [json.loads(line) for line in Path(args.cases).read_text().splitlines() if line.strip()]
     suggester = llm.get_suggester() if args.llm else llm.RuleBasedSuggester()
+    if args.llm and isinstance(suggester, llm.RuleBasedSuggester):
+        sys.exit("--llm needs a key in THIS terminal: set GEMINI_API_KEY or ANTHROPIC_API_KEY "
+                 "(env vars do not survive a new window). Refusing to score the rule-based baseline as an LLM.")
     right, invalid, per_rule, misses = run(suggester, cases)
     print(f"{type(suggester).__name__}: {right}/{len(cases)} correct ({right / len(cases):.0%}), {invalid} invalid replies")
     for reason, n in sorted(run.errors.items(), key=lambda kv: -kv[1]):
