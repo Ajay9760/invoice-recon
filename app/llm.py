@@ -128,7 +128,8 @@ class GeminiSuggester:
 
     def __init__(self, api_key: str, model: str | None = None, timeout: float = 15.0, client=None):
         import httpx
-        self.model = model or os.getenv("LLM_MODEL", "gemini-2.5-flash")
+        # "-latest" alias: Google retires specific model names for new users (2.5 Flash already was)
+        self.model = model or os.getenv("LLM_MODEL", "gemini-flash-latest")
         self._api_key = api_key
         self._client = client or httpx.Client(timeout=timeout)
 

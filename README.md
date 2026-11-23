@@ -281,7 +281,7 @@ Guardrails:
 Configuration: `REVIEWER_API_KEY` (required to approve/reject) and an optional LLM provider.
 `LLM_PROVIDER` = `anthropic` | `gemini` | `rule_based`; if unset it uses Anthropic when `ANTHROPIC_API_KEY`
 is set, else Gemini when `GEMINI_API_KEY` is set (free tier at aistudio.google.com), else rule-based.
-`LLM_MODEL` overrides the default model (`claude-haiku-5-5` / `gemini-2.5-flash`). Forcing a provider
+`LLM_MODEL` overrides the default model (`claude-haiku-5-5` / `gemini-flash-latest`). Forcing a provider
 without its key fails at startup instead of silently downgrading.
 
 Evaluation: `python eval/run_eval.py` scores the rule-based baseline on 20 hand-labelled cases;
