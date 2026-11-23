@@ -4,7 +4,9 @@
     GEMINI_API_KEY=... python eval/run_eval.py --llm       # or ANTHROPIC_API_KEY=...
     LLM_PROVIDER=gemini python eval/run_eval.py --llm      # force a provider
 
-The labels in cases.jsonl are judgement calls: review and relabel them before trusting a score.
+    python eval/run_eval.py --llm --cases eval/cases_hard.jsonl   # 15 harder cases (typos, contradictions, injections)
+
+The labels in the .jsonl files are judgement calls: review and relabel them before trusting a score.
 Prints overall and per-rule accuracy plus how many replies were invalid (those fall back in the app).
 """
 import argparse

@@ -28,3 +28,10 @@ def test_llm_flag_without_a_key_fails_instead_of_scoring_the_baseline(monkeypatc
     with pytest.raises(SystemExit) as exc:
         run_eval.main()
     assert "THIS terminal" in str(exc.value)
+
+
+def test_hard_cases_are_valid_and_actually_discriminating():
+    hard = [json.loads(x) for x in Path(run_eval.__file__).with_name("cases_hard.jsonl").read_text().splitlines()]
+    assert len(hard) == 15 and all(c["expected"] in llm.ALLOWED_ACTIONS for c in hard)
+    right, invalid, _, _ = run_eval.run(llm.RuleBasedSuggester(), hard)
+    assert invalid == 0 and right <= 10   # the baseline must lose at least 5, or the set proves nothing
