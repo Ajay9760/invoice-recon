@@ -126,3 +126,23 @@ def test_gemini_error_includes_status_and_google_message_but_not_key():
     with pytest.raises(llm.SuggestionError) as err:
         gemini_with(lambda r: httpx.Response(400, json=body)).suggest("OVERPAID", "MEDIUM", "d")
     assert "HTTP 400 INVALID_ARGUMENT" in str(err.value) and "API key not valid" in str(err.value)
+
+
+def test_gemini_flash_disables_thinking_and_has_room_for_output():
+    seen = {}
+
+    def handler(request):
+        import json as _j
+        seen["cfg"] = _j.loads(request.read())["generationConfig"]
+        return httpx.Response(200, json=gemini_reply('{"action": "CHASE_PAYMENT", "rationale": "Overdue."}'))
+
+    llm.GeminiSuggester(api_key="k", model="gemini-2.5-flash",
+                        client=httpx.Client(transport=httpx.MockTransport(handler))).suggest("OVERPAID", "M", "d")
+    assert seen["cfg"]["thinkingConfig"] == {"thinkingBudget": 0} and seen["cfg"]["maxOutputTokens"] >= 1024
+
+
+def test_gemini_empty_reply_reports_finish_reason():
+    resp = httpx.Response(200, json={"candidates": [{"finishReason": "MAX_TOKENS", "content": {"role": "model"}}]})
+    with pytest.raises(llm.SuggestionError) as err:
+        gemini_with(lambda r: resp).suggest("OVERPAID", "MEDIUM", "d")
+    assert "MAX_TOKENS" in str(err.value)

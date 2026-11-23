@@ -136,16 +136,25 @@ class GeminiSuggester:
         body = {
             "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
             "contents": [{"role": "user", "parts": [{"text": build_user_message(rule_code, severity, detail)}]}],
-            "generationConfig": {"temperature": 0, "maxOutputTokens": 300,
+            "generationConfig": {"temperature": 0, "maxOutputTokens": 1024,
                                  "responseMimeType": "application/json"},
         }
+        if self.model.startswith("gemini-2.5-flash"):
+            # 2.5 Flash "thinks" by default and thinking tokens count against maxOutputTokens,
+            # which can leave an empty reply. This task needs no reasoning, so turn it off.
+            body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
         try:
             # key goes in a header, not the URL, so it never lands in access logs
             resp = self._client.post(self.URL.format(model=self.model), json=body,
                                      headers={"x-goog-api-key": self._api_key})
             resp.raise_for_status()
-            parts = resp.json()["candidates"][0]["content"]["parts"]
+            data = resp.json()
+            cand = (data.get("candidates") or [{}])[0]
+            parts = (cand.get("content") or {}).get("parts") or []
             raw = "".join(p.get("text", "") for p in parts)
+            if not raw.strip():
+                reason = cand.get("finishReason") or (data.get("promptFeedback") or {}).get("blockReason")
+                raise ValueError(f"empty reply (finishReason={reason})")
         except Exception as exc:  # network, HTTP error, blocked/empty candidate, bad shape
             raise SuggestionError(f"Gemini call failed: {self._describe(exc)}") from exc
         return parse_suggestion(raw, self.model)
@@ -155,7 +164,7 @@ class GeminiSuggester:
         """Short, key-free reason: HTTP status plus Google's own error text when present."""
         resp = getattr(exc, "response", None)
         if resp is None:
-            return type(exc).__name__
+            return f"{type(exc).__name__}: {exc}"[:200] if str(exc) else type(exc).__name__
         try:
             err = resp.json().get("error", {})
             return f"HTTP {resp.status_code} {err.get('status', '')}: {str(err.get('message', ''))[:160]}".strip()
