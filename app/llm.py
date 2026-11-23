@@ -11,6 +11,7 @@ Design rules (this is the "agent" layer, so it is deliberately boxed in):
 import json
 import os
 import re
+import time
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -123,15 +124,47 @@ class AnthropicSuggester:
 
 
 class GeminiSuggester:
-    """Google Gemini via its REST API (free tier available in Google AI Studio)."""
-    URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    """Google Gemini via its REST API (free tier available in Google AI Studio).
 
-    def __init__(self, api_key: str, model: str | None = None, timeout: float = 15.0, client=None):
+    Free-tier capacity is limited, so 429/5xx replies and timeouts are retried with backoff
+    (LLM_MAX_RETRIES, default 2). After that the caller falls back to the rule-based suggester.
+    """
+    URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    RETRY_STATUS = {429, 500, 502, 503, 504}
+
+    def __init__(self, api_key: str, model: str | None = None, timeout: float | None = None, client=None,
+                 retries: int | None = None, sleep=time.sleep):
         import httpx
+        self._httpx = httpx
         # "-latest" alias: Google retires specific model names for new users (2.5 Flash already was)
         self.model = model or os.getenv("LLM_MODEL", "gemini-flash-latest")
         self._api_key = api_key
-        self._client = client or httpx.Client(timeout=timeout)
+        self._client = client or httpx.Client(timeout=timeout or float(os.getenv("LLM_TIMEOUT", "30")))
+        self.retries = int(os.getenv("LLM_MAX_RETRIES", "2")) if retries is None else retries
+        self._sleep = sleep
+
+    def _delay(self, resp, attempt: int) -> float:
+        try:
+            wait = float(resp.headers.get("retry-after", "")) if resp is not None else None
+        except ValueError:
+            wait = None
+        return min(wait if wait is not None else 2.0 * 2 ** attempt, 20.0)
+
+    def _post(self, body: dict):
+        url, headers = self.URL.format(model=self.model), {"x-goog-api-key": self._api_key}
+        for attempt in range(self.retries + 1):
+            try:
+                resp = self._client.post(url, json=body, headers=headers)
+            except self._httpx.TransportError:  # timeout, connection reset
+                if attempt == self.retries:
+                    raise
+                self._sleep(self._delay(None, attempt))
+                continue
+            if resp.status_code in self.RETRY_STATUS and attempt < self.retries:
+                self._sleep(self._delay(resp, attempt))
+                continue
+            resp.raise_for_status()
+            return resp
 
     def suggest(self, rule_code: str, severity: str, detail: str) -> Suggestion:
         body = {
@@ -146,10 +179,7 @@ class GeminiSuggester:
             body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
         try:
             # key goes in a header, not the URL, so it never lands in access logs
-            resp = self._client.post(self.URL.format(model=self.model), json=body,
-                                     headers={"x-goog-api-key": self._api_key})
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._post(body).json()
             cand = (data.get("candidates") or [{}])[0]
             parts = (cand.get("content") or {}).get("parts") or []
             raw = "".join(p.get("text", "") for p in parts)

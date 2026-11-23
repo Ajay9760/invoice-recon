@@ -10,6 +10,7 @@ Prints overall and per-rule accuracy plus how many replies were invalid (those f
 import argparse
 import json
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -17,10 +18,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import llm  # noqa: E402
 
 
-def run(suggester, cases):
+def run(suggester, cases, delay=0.0):
     right, invalid, per_rule, misses = 0, 0, defaultdict(lambda: [0, 0]), []
     errors = defaultdict(int)
-    for c in cases:
+    for i, c in enumerate(cases):
+        if delay and i:
+            time.sleep(delay)   # stay under free-tier requests-per-minute limits
         try:
             got = suggester.suggest(c["rule_code"], c["severity"], c["detail"]).action
         except llm.SuggestionError as exc:
@@ -39,6 +42,7 @@ def run(suggester, cases):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--llm", action="store_true", help="use the LLM chosen by env (see llm.get_suggester)")
+    ap.add_argument("--delay", type=float, default=4.0, help="seconds between LLM calls (rate limits)")
     ap.add_argument("--cases", default=str(Path(__file__).with_name("cases.jsonl")))
     args = ap.parse_args()
     cases = [json.loads(line) for line in Path(args.cases).read_text().splitlines() if line.strip()]
@@ -46,7 +50,7 @@ def main():
     if args.llm and isinstance(suggester, llm.RuleBasedSuggester):
         sys.exit("--llm needs a key in THIS terminal: set GEMINI_API_KEY or ANTHROPIC_API_KEY "
                  "(env vars do not survive a new window). Refusing to score the rule-based baseline as an LLM.")
-    right, invalid, per_rule, misses = run(suggester, cases)
+    right, invalid, per_rule, misses = run(suggester, cases, args.delay if args.llm else 0.0)
     print(f"{type(suggester).__name__}: {right}/{len(cases)} correct ({right / len(cases):.0%}), {invalid} invalid replies")
     for reason, n in sorted(run.errors.items(), key=lambda kv: -kv[1]):
         print(f"  INVALID x{n}: {reason}")

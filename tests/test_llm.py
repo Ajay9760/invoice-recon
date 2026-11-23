@@ -59,7 +59,7 @@ import httpx  # noqa: E402
 
 def gemini_with(handler):
     client = httpx.Client(transport=httpx.MockTransport(handler))
-    return llm.GeminiSuggester(api_key="k", model="gemini-test", client=client)
+    return llm.GeminiSuggester(api_key="k", model="gemini-test", client=client, retries=0)
 
 
 def gemini_reply(text):
@@ -136,7 +136,7 @@ def test_gemini_flash_disables_thinking_and_has_room_for_output():
         seen["cfg"] = _j.loads(request.read())["generationConfig"]
         return httpx.Response(200, json=gemini_reply('{"action": "CHASE_PAYMENT", "rationale": "Overdue."}'))
 
-    llm.GeminiSuggester(api_key="k", model="gemini-2.5-flash",
+    llm.GeminiSuggester(api_key="k", model="gemini-2.5-flash", retries=0,
                         client=httpx.Client(transport=httpx.MockTransport(handler))).suggest("OVERPAID", "M", "d")
     assert seen["cfg"]["thinkingConfig"] == {"thinkingBudget": 0} and seen["cfg"]["maxOutputTokens"] >= 1024
 
@@ -146,3 +146,50 @@ def test_gemini_empty_reply_reports_finish_reason():
     with pytest.raises(llm.SuggestionError) as err:
         gemini_with(lambda r: resp).suggest("OVERPAID", "MEDIUM", "d")
     assert "MAX_TOKENS" in str(err.value)
+
+
+def retrying(responses, retries=2):
+    calls, slept = [], []
+
+    def handler(request):
+        calls.append(1)
+        r = responses[min(len(calls), len(responses)) - 1]
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    return llm.GeminiSuggester("k", "m", client=client, retries=retries, sleep=slept.append), calls, slept
+
+
+OK = httpx.Response(200, json=gemini_reply('{"action": "CHASE_PAYMENT", "rationale": "Overdue."}'))
+
+
+def test_gemini_retries_503_then_succeeds():
+    s, calls, slept = retrying([httpx.Response(503), httpx.Response(503), OK])
+    assert s.suggest("OVERPAID", "M", "d").action == "CHASE_PAYMENT" and len(calls) == 3 and len(slept) == 2
+
+
+def test_gemini_retries_timeout_then_succeeds():
+    s, calls, _ = retrying([httpx.ReadTimeout("slow"), OK])
+    assert s.suggest("OVERPAID", "M", "d").action == "CHASE_PAYMENT" and len(calls) == 2
+
+
+def test_gemini_honours_retry_after_header():
+    s, _, slept = retrying([httpx.Response(429, headers={"retry-after": "7"}), OK])
+    s.suggest("OVERPAID", "M", "d")
+    assert slept == [7.0]
+
+
+def test_gemini_gives_up_after_retries_with_clear_reason():
+    s, calls, _ = retrying([httpx.Response(503, json={"error": {"status": "UNAVAILABLE", "message": "busy"}})])
+    with pytest.raises(llm.SuggestionError) as err:
+        s.suggest("OVERPAID", "M", "d")
+    assert len(calls) == 3 and "503 UNAVAILABLE" in str(err.value)
+
+
+def test_gemini_does_not_retry_client_errors():
+    s, calls, _ = retrying([httpx.Response(400, json={"error": {"status": "INVALID_ARGUMENT", "message": "bad"}})])
+    with pytest.raises(llm.SuggestionError):
+        s.suggest("OVERPAID", "M", "d")
+    assert len(calls) == 1
